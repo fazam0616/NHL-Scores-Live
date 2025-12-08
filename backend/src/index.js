@@ -1,5 +1,4 @@
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
-const { logger } = require("firebase-functions/logger");
 const admin = require("firebase-admin");
 
 // Initialize with demo project for emulator
@@ -115,11 +114,13 @@ async function createGame(gameData, options = {}, setDB = true) {
         team_id: homeTeam.triCode,
         team_name: homeTeam.fullName,
         team_score: gameData.homeScore || 0,
+        franchise_id: homeTeam.franchiseId || -1,
       },
       away_data: {
         team_id: awayTeam.triCode,
-        team_name: awayTeam.fullName,
+        team_name: awayTeam.fullName ,
         team_score: gameData.visitingScore || 0,
+        franchise_id: awayTeam.franchiseId || -1,
       },
       status: statusMap[gameData.gameStateId] || "SCHEDULED",
       raw: gameData,
@@ -140,6 +141,19 @@ async function createGame(gameData, options = {}, setDB = true) {
     // Use scores from API if found, otherwise default to 0
     const awayScore = currentGame?.awayTeam?.score || 0;
     const homeScore = currentGame?.homeTeam?.score || 0;
+
+    // Get franchise IDs from teams collection
+    const homeTeamDoc = await db.collection("teams")
+      .where("abbreviation", "==", gameData.homeTeam.abbrev)
+      .limit(1)
+      .get();
+    const awayTeamDoc = await db.collection("teams")
+      .where("abbreviation", "==", gameData.awayTeam.abbrev)
+      .limit(1)
+      .get();
+    
+    const home_franchiseId = homeTeamDoc.docs[0]?.data()?.franchise_id || -1;
+    const away_franchiseId = awayTeamDoc.docs[0]?.data()?.franchise_id || -1;      
     
     gameDoc = {
       gameid: gameId,
@@ -148,11 +162,13 @@ async function createGame(gameData, options = {}, setDB = true) {
         team_id: gameData.homeTeam.abbrev,
         team_name: gameData.homeTeam.commonName.default,
         team_score: homeScore,
+        franchise_id: home_franchiseId,
       },
       away_data: {
         team_id: gameData.awayTeam.abbrev,
         team_name: gameData.awayTeam.commonName.default,
         team_score: awayScore,
+        franchise_id: away_franchiseId,
       },
       status: gameData.gameState || "SCHEDULED",
       raw: gameData,
@@ -194,7 +210,7 @@ async function ingestData(options = {}) {
       const teamsData = await teamsResponse.json();
       const teamLookup = new Map();
       for (const team of teamsData.data || []) {
-        teamLookup.set(team.id, { triCode: team.triCode, fullName: team.fullName });
+        teamLookup.set(team.id, { triCode: team.triCode, fullName: team.fullName, franchiseId: team.franchiseId });
       }
       console.log(`Loaded ${teamLookup.size} teams\n`);
       
@@ -256,7 +272,6 @@ async function ingestData(options = {}) {
       dateRange = dateString;
 
 
-      // To avoid rate limiting, add a small delay before the fetch
       const scheduleResponse = await fetch(
         `https://api-web.nhle.com/v1/schedule/${dateString}`
       );
@@ -289,6 +304,7 @@ async function ingestData(options = {}) {
     console.log(`\nProcessing ${gamesToProcess.length} games...\n`);
     let created = 0;
     let skipped = 0;
+    let updated = 0;
     
     if (backfillYear && gamesToProcess.length > 0 && gamesToProcess[0].isStatsAPI) {
       // Batch processing for Stats API (bulk backfill)
@@ -317,14 +333,35 @@ async function ingestData(options = {}) {
             batch.set(gameRef, gameData);
             created++;
           } else {
-            skipped++;
+            const existingData = gameDoc.data();
+            const existingStatus = existingData.status;
+            
+            // Check if game was SCHEDULED or LIVE - need to update
+            if (existingStatus === "SCHEDULED" || existingStatus === "LIVE" || existingStatus === "PREGAME" || existingStatus === "CRIT") {
+              const { gameDoc: gameData } = await createGame(game, { teamLookup }, false);
+              
+              // Check if status or scores changed
+              const statusChanged = existingStatus !== gameData.status;
+              const scoresChanged = 
+                existingData.home_data.team_score !== gameData.home_data.team_score ||
+                existingData.away_data.team_score !== gameData.away_data.team_score;
+              
+              if (statusChanged || scoresChanged) {
+                batch.update(gameRef, gameData);
+                updated++;
+              } else {
+                skipped++;
+              }
+            } else {
+              skipped++;
+            }
           }
         }
         
         // Commit the batch
         await batch.commit();
         
-        console.log(`Progress: ${Math.min((batchIndex + 1) * BATCH_SIZE, gamesToProcess.length)}/${gamesToProcess.length} games processed (${created} created, ${skipped} skipped)`);
+        console.log(`Progress: ${Math.min((batchIndex + 1) * BATCH_SIZE, gamesToProcess.length)}/${gamesToProcess.length} games processed (${created} created, ${updated} updated, ${skipped} skipped)`);
         
         // Add delay between batches to avoid overwhelming emulator
         if (batchIndex < batches.length - 1) {
@@ -354,6 +391,7 @@ async function ingestData(options = {}) {
     console.log(`Date Range: ${dateRange}`);
     console.log(`Games Found: ${gamesToProcess.length}`);
     console.log(`Games Created: ${created}`);
+    console.log(`Games Updated: ${updated}`);
     console.log(`Games Skipped: ${skipped}`);
     console.log("================================\n");
     
@@ -363,6 +401,7 @@ async function ingestData(options = {}) {
       dateRange,
       gamesFound: gamesToProcess.length,
       gamesCreated: created,
+      gamesUpdated: updated,
       gamesSkipped: skipped,
     };
   } catch (error) {
@@ -386,8 +425,9 @@ async function fetchGameGoals(gameId) {
     
     const gameData = gameDoc.data();
     
+    
     // If goals already exist, return them
-    if (gameData.goals && Object.keys(gameData.goals).length > 0) {
+    if (gameData.status === "FINAL" && gameData.goals && Object.keys(gameData.goals).length > 0) {
       return {
         success: true,
         gameId,
@@ -395,6 +435,7 @@ async function fetchGameGoals(gameId) {
         source: "database",
       };
     }
+
     
     // Fetch play-by-play data from API
     const playByPlayResponse = await fetch(
@@ -411,13 +452,49 @@ async function fetchGameGoals(gameId) {
     // Filter for goal events (eventId 505)
     const goalPlays = plays.filter((play) => play.typeDescKey === "goal");
     
+    // Sort goals by period and time
+    goalPlays.sort((a, b) => {
+      const periodA = a.periodDescriptor?.number || 1;
+      const periodB = b.periodDescriptor?.number || 1;
+      
+      if (periodA !== periodB) {
+        return periodA - periodB;
+      }
+      
+      // If same period, sort by time in period
+      const timeA = a.timeInPeriod || "00:00";
+      const timeB = b.timeInPeriod || "00:00";
+      
+      // Convert MM:SS to total seconds for comparison
+      const [minA, secA] = timeA.split(':').map(Number);
+      const [minB, secB] = timeB.split(':').map(Number);
+      const totalSecsA = minA * 60 + secA;
+      const totalSecsB = minB * 60 + secB;
+      
+      return totalSecsA - totalSecsB;
+    });
+    
     // Build goals object keyed by time
     const goals = {};
+    let prevHomeScore = 0;
+    let prevAwayScore = 0;
     
     for (const play of goalPlays) {
       const timeInPeriod = play.timeInPeriod || "00:00";
       const period = play.periodDescriptor?.number || 1;
+
+      // Determine current scores from play details
+      const homeScore = play.details.homeScore || 0;
+      const awayScore = play.details.awayScore || 0;
       
+      // Determine who scored by comparing to previous scores
+      const homeScored = homeScore > prevHomeScore;
+      const awayScored = awayScore > prevAwayScore;
+      
+      // Update previous scores for next iteration
+      prevHomeScore = homeScore;
+      prevAwayScore = awayScore;
+
       // Get scorer, goalie, and assists
       const details = play.details || {};
       const scoringPlayerId = details.scoringPlayerId;
@@ -428,7 +505,11 @@ async function fetchGameGoals(gameId) {
       const rosterSpots = playByPlayData.rosterSpots || [];
       const getPlayerName = (playerId) => {
         const player = rosterSpots.find((spot) => spot.playerId === playerId);
-        return player ? `${player.firstName?.default || ""} ${player.lastName?.default || ""}`.trim() : "Unknown";
+        if (!player) return "Unknown";
+        const firstName = player.firstName?.default || "";
+        const lastName = player.lastName?.default || "";
+        if (!firstName || !lastName) return "Unknown";
+        return `${firstName.charAt(0)}. ${lastName}`;
       };
       
       const scorerName = getPlayerName(scoringPlayerId);
@@ -446,7 +527,7 @@ async function fetchGameGoals(gameId) {
         secondaryAssist: secondaryAssist,
         period: period,
         timeInPeriod: timeInPeriod,
-        teamId: play.details?.eventOwnerTeamId,
+        isHome: homeScored,
       };
     }
     
@@ -577,7 +658,7 @@ exports.fetchGoals = onCall(async (request) => {
     );
   }
   
-  logger.info(`Fetching goals for game: ${gameId}`);
+  console.log('Fetching goals for game:', gameId);
   
   const result = await fetchGameGoals(gameId);
   
@@ -598,7 +679,7 @@ exports.updateGame = onCall(async (request) => {
     );
   }
   
-  logger.info(`Updating game: ${gameId}`);
+  console.log('Updating game:', gameId);
   
   const result = await fetchGame(gameId);
   

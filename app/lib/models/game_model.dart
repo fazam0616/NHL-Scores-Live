@@ -25,7 +25,7 @@ class Goal {
   final String? secondaryAssist;
   final int period;
   final String timeInPeriod;
-  final int? teamId;
+  final bool? isHome;
 
   Goal({
     required this.scorer,
@@ -34,7 +34,7 @@ class Goal {
     this.secondaryAssist,
     required this.period,
     required this.timeInPeriod,
-    this.teamId,
+    this.isHome,
   });
 
   factory Goal.fromMap(Map<String, dynamic> data) {
@@ -45,7 +45,7 @@ class Goal {
       secondaryAssist: data['secondaryAssist'],
       period: data['period'] ?? 1,
       timeInPeriod: data['timeInPeriod'] ?? '00:00',
-      teamId: data['teamId'],
+      isHome: data['isHome'],
     );
   }
 }
