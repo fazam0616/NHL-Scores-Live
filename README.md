@@ -366,8 +366,17 @@ NHL seasons run October-September:
 
 ### Known Limitations
 - NHL API rate limits may affect rapid updates
-- Emulator data is ephemeral (cleared on restart without export)
+- Emulator data is volatile (cleared on restart without export)
 - No authentication (demo project only)
+- No on-device caching
+    This could be implemented with Android shared preferences to store todays game data
+    Local files could be used for historical data to avoid bloating preferences
+- No games filtering
+
+### AI Usage
+- Boilerplate structures for Flutter page routing, and main App initialization
+- Research on different API options and known limitations of the API from GitHub issues
+- Boilerplate structures for Firebase functions project setup
 
 ## API References
 
@@ -398,5 +407,3 @@ npm run ingest -- backfill=2024
 ```
 
 Open http://localhost:4000 to view the Emulator UI.
-
-**That's it!** The app will auto-ingest today's games when you open it.
