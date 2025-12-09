@@ -227,12 +227,6 @@ cd app
 flutter run -d <device-id>
 ```
 
-**For Web (quick testing alternative):**
-```powershell
-cd app
-flutter run -d chrome
-```
-
 **List available devices:**
 ```powershell
 flutter devices
@@ -270,7 +264,6 @@ Features:
    ```powershell
    cd app
    flutter run  # Defaults to connected Android device
-   # Or for web testing: flutter run -d chrome
    ```
 
 3. **Optional - Ingest data** (Terminal 3):
@@ -355,67 +348,6 @@ NHL seasons run October-September:
 - **Network errors**: Displayed with retry button
 - **Transaction locking**: Prevents concurrent write conflicts
 
-## Troubleshooting
-
-### Emulators Won't Start
-
-**Issue**: Port already in use
-```
-Error: Port 5001 is not open
-```
-
-**Solution**: Kill existing processes or use different ports
-```powershell
-# Windows - Find and kill process on port
-netstat -ano | findstr :5001
-taskkill /PID <process_id> /F
-
-# Or change ports in firebase.json
-```
-
-### Flutter Can't Connect to Emulators
-
-**Issue**: Connection refused errors
-
-**Solution**: Ensure emulators are running and check `main.dart`:
-```dart
-if (kDebugMode) {
-  FirebaseFirestore.instance.useFirestoreEmulator('localhost', 8080);
-  FirebaseFunctions.instance.useFunctionsEmulator('localhost', 5001);
-}
-```
-
-For Android emulator, use `10.0.2.2` instead of `localhost`.
-
-### No Games Showing
-
-**Issue**: Empty game list
-
-**Solutions**:
-1. Check if emulators are running
-2. Manually trigger ingestion: `npm run ingest`
-3. Check Emulator UI (http://localhost:4000) for data
-4. Look for errors in Firebase Functions logs
-
-### Goals Not Appearing
-
-**Issue**: Game shows but no goals displayed
-
-**Solutions**:
-1. Check if `fetchGoals` function was called
-2. Inspect game document in Firestore (should have `goals` field)
-3. Check browser console for errors
-4. Try tapping the game card to trigger goal fetch
-
-### Team Stats Not Updating
-
-**Issue**: Team screen shows outdated data
-
-**Solutions**:
-1. Check cache timestamp in Firestore `teams` collection
-2. Ensure recent games have `status: "FINAL"`
-3. Verify current season calculation (October boundary)
-4. Force refresh by reloading the screen
 
 ## Project Status
 
@@ -436,11 +368,10 @@ For Android emulator, use `10.0.2.2` instead of `localhost`.
 - NHL API rate limits may affect rapid updates
 - Emulator data is ephemeral (cleared on restart without export)
 - No authentication (demo project only)
-- Limited to NHL games (no other sports)
 
 ## API References
 
-This project uses NHL's public APIs:
+This project uses Open Sourced API's for NHL data:
 
 - **Schedule API**: `https://api-web.nhle.com/v1/schedule/{date}`
 - **Score API**: `https://api-web.nhle.com/v1/score/{date}`
@@ -448,21 +379,6 @@ This project uses NHL's public APIs:
 - **Stats API**: `https://api.nhle.com/stats/rest/en/team`
 
 **Note**: These are unofficial APIs and may change without notice.
-
-## Contributing
-
-This is an assignment project, but improvements are welcome:
-
-1. Fork the repository
-2. Create a feature branch
-3. Make changes and test with emulators
-4. Submit a pull request
-
-## License
-
-MIT
-
----
 
 ## Quick Start Summary
 
@@ -484,5 +400,3 @@ npm run ingest -- backfill=2024
 Open http://localhost:4000 to view the Emulator UI.
 
 **That's it!** The app will auto-ingest today's games when you open it.
-
-**For web testing**: Replace `flutter run` with `flutter run -d chrome`
