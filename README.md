@@ -4,20 +4,22 @@ A real-time NHL game tracking application built with Flutter and Firebase. Featu
 
 ## Project Overview
 
-This application tracks NHL games with the following capabilities:
+This Android application tracks NHL games with the following capabilities:
 - **Real-time game updates** - Live scores and goal tracking with automatic polling
 - **Team statistics** - Season-specific and all-time team performance metrics
 - **Historical data** - Browse games from any date with intelligent caching
 - **Smart ingestion** - Automatic data fetching from open source NHL API's
 - **Season awareness** - Automatically detects and handles season transitions
 
+**Primary Platform**: Android (with web support for rapid testing)
+
 ## Prerequisites
 
 - **Flutter SDK** (3.0.0 or higher) - [Install Flutter](https://flutter.dev/docs/get-started/install)
+- **Android Studio** (required for Android development) - [Download Android Studio](https://developer.android.com/studio)
 - **Node.js** (18.x or higher) - [Download Node.js](https://nodejs.org/)
 - **Firebase CLI** - Install globally: `npm install -g firebase-tools`
-- **Android Studio** (for Android development) - [Download Android Studio](https://developer.android.com/studio)
-- **Chrome** (for web development)
+- **Chrome** (optional, for web testing)
 
 ## Backend Architecture
 
@@ -79,7 +81,6 @@ The backend consists of several callable Cloud Functions that interact with NHL'
 - Displays games for selected date (defaults to today)
 - Date picker to browse historical games
 - Auto-refresh every 10 seconds for today's games
-- Color-coded game cards (green=win, red=loss, yellow=draw)
 - Modal bottom sheet for game details
 - Maintains update timer when viewing game details
 
@@ -101,9 +102,7 @@ The backend consists of several callable Cloud Functions that interact with NHL'
   - Displays season year (e.g., "2024-2025")
   - Resets every October 1st
 - **All-Time Stats**: Lifetime performance across all seasons
-- **Recent Games**: Last 5 completed games with color coding
-- Modal bottom sheet for game details (same as home screen)
-- Cached data indicator
+- **Recent Games**: Last 5 completed games with color coding (green=win, red=loss, yellow=draw)
 - Auto-refresh when season changes
 
 ### State Management
@@ -139,7 +138,7 @@ Uses **go_router** for URL-based navigation:
 - **GameCard widget**: Reusable card with optional background color
 - **Status indicators**: Color-coded badges (LIVE=red, FINAL=blue, SCHEDULED=yellow)
 - **Team logos**: SVG images from NHL CDN
-- **Responsive layout**: Works on web and mobile
+- **Responsive layout**: Optimized for Android devices, with web support for testing
 
 ## Setup Instructions
 
@@ -163,21 +162,18 @@ cd ..
 
 ### 2. Firebase Emulator Setup
 
-This project **uses Firebase emulators only** - no real Firebase project needed!
+This project **uses Firebase emulators only**
 
 The emulators are pre-configured in `firebase.json`:
 - **Firestore**: Port 8080 (database)
 - **Functions**: Port 5001 (cloud functions)
 - **UI**: Port 4000 (emulator dashboard)
 
-No additional Firebase configuration required - just start the emulators!
-
 ### 3. Flutter Firebase Configuration
 
 The app is pre-configured with demo credentials in `app/lib/firebase_options.dart`:
 - Uses `quadlii-nhl-scores` as demo project ID
 - Automatically connects to emulators in debug mode (see `main.dart`)
-- No `google-services.json` needed for emulator development
 
 ## Running the Application
 
@@ -209,7 +205,7 @@ cd backend
 # Ingest today's games
 npm run ingest
 
-# OR ingest historical data from specific year
+# OR ingest historical data from specific year to present day
 npm run ingest -- backfill=2023
 npm run ingest -- backfill=2024
 ```
@@ -225,22 +221,24 @@ This creates:
 
 In a new terminal:
 
-**For Web (recommended for development):**
-```powershell
-cd app
-flutter run -d chrome
-```
-
-**For Android:**
+**For Android (primary platform):**
 ```powershell
 cd app
 flutter run -d <device-id>
+```
+
+**For Web (quick testing alternative):**
+```powershell
+cd app
+flutter run -d chrome
 ```
 
 **List available devices:**
 ```powershell
 flutter devices
 ```
+
+**Note**: Connect an Android device via USB or start an Android emulator from Android Studio before running.
 
 ### Step 4: Using the App
 
@@ -263,15 +261,16 @@ Features:
 
 ### Typical Development Session
 
-1. **Start emulators** (Terminal 1):
+1. **Start Firebase emulators** (Terminal 1):
    ```powershell
    firebase emulators:start --only functions,firestore
    ```
 
-2. **Run Flutter app** (Terminal 2):
+2. **Run Flutter app on Android** (Terminal 2):
    ```powershell
    cd app
-   flutter run -d chrome
+   flutter run  # Defaults to connected Android device
+   # Or for web testing: flutter run -d chrome
    ```
 
 3. **Optional - Ingest data** (Terminal 3):
@@ -314,19 +313,15 @@ The app uses a **hybrid update mechanism** for optimal performance:
 
 1. **Home Screen** (10-second polling)
    - Queries Firestore every 10 seconds for game list
-   - No real-time listener (reduces connection overhead)
-   - Timer continues running even when game details modal is open
    - Stops when viewing historical dates
 
 2. **Game Screen** (Real-time + 2-second polling)
    - Firestore `.snapshots()` listener for instant database updates
-   - Timer.periodic every 2 seconds to call `updateGame` function
    - Only polls API for live games (skips FINAL games)
    - Rate-limit protection with silent error handling
 
 3. **Team Screen** (On-demand with cache)
    - Fetches data once on load
-   - Cached on backend for 5 minutes
    - Invalidates cache when season changes
 
 ### Season Detection Logic
@@ -435,7 +430,7 @@ For Android emulator, use `10.0.2.2` instead of `localhost`.
 - ✅ Automatic data ingestion
 - ✅ Rate-limit protection
 - ✅ Transaction locking for concurrent updates
-- ✅ Responsive UI for web and mobile
+- ✅ Native Android UI optimized for mobile devices
 
 ### Known Limitations
 - NHL API rate limits may affect rapid updates
@@ -474,12 +469,12 @@ MIT
 For the impatient developer:
 
 ```powershell
-# Terminal 1: Start emulators
+# Terminal 1: Start Firebase emulators
 firebase emulators:start --only functions,firestore
 
-# Terminal 2: Run app
+# Terminal 2: Run app on Android
 cd app
-flutter run -d chrome
+flutter run  # Ensure Android device/emulator is connected
 
 # Terminal 3 (optional): Load historical data
 cd backend
@@ -489,3 +484,5 @@ npm run ingest -- backfill=2024
 Open http://localhost:4000 to view the Emulator UI.
 
 **That's it!** The app will auto-ingest today's games when you open it.
+
+**For web testing**: Replace `flutter run` with `flutter run -d chrome`

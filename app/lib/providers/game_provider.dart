@@ -183,8 +183,7 @@ class GameProvider extends ChangeNotifier {
     try {
       debugPrint('🔵 Calling ingestTodaysGames function...');
       final callable = _functions.httpsCallable('ingestTodaysGames');
-      final result = await callable.call({});
-      debugPrint('✅ Ingestion complete: ${result.data}');
+      final _ = await callable.call({});
     } catch (e) {
       debugPrint('❌ Error calling ingestTodaysGames function: $e');
       // Don't throw - allow app to continue even if ingestion fails
@@ -203,8 +202,7 @@ class GameProvider extends ChangeNotifier {
       final callable = _functions.httpsCallable('fetchGoals');
       debugPrint('🔵 Created callable function');
 
-      final result = await callable.call({'gameId': gameId});
-      debugPrint('✅ Successfully called fetchGoals: ${result.data}');
+      final _ = await callable.call({'gameId': gameId});
 
       // Goals will be updated via Firestore listener
       _isLoadingGoals = false;
