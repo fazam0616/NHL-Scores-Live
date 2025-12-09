@@ -54,7 +54,7 @@ class GameCard extends StatelessWidget {
                     _getStatusText(),
                     style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 10,
+                      fontSize: 14,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -68,9 +68,9 @@ class GameCard extends StatelessWidget {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    // Away team logo
+                    // Home team logo
                     SvgPicture.network(
-                      'https://assets.nhle.com/logos/nhl/svg/${game.awayData.teamId}_light.svg',
+                      'https://assets.nhle.com/logos/nhl/svg/${game.homeData.teamId}_light.svg',
                       width: logoSize,
                       height: logoSize,
                       placeholderBuilder: (context) => const SizedBox(
@@ -81,24 +81,6 @@ class GameCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 12),
-                    // Away team abbreviation
-                    Text(
-                      game.awayData.teamId,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const Spacer(),
-                    // Centered score
-                    Text(
-                      '${game.awayData.teamScore} - ${game.homeData.teamScore}',
-                      style: const TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const Spacer(),
                     // Home team abbreviation
                     Text(
                       game.homeData.teamId,
@@ -107,10 +89,28 @@ class GameCard extends StatelessWidget {
                         fontWeight: FontWeight.bold,
                       ),
                     ),
+                    const Spacer(),
+                    // Centered score
+                    Text(
+                      '${game.homeData.teamScore} - ${game.awayData.teamScore}',
+                      style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const Spacer(),
+                    // Away team abbreviation
+                    Text(
+                      game.awayData.teamId,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                     const SizedBox(width: 12),
-                    // Home team logo
+                    // Away team logo
                     SvgPicture.network(
-                      'https://assets.nhle.com/logos/nhl/svg/${game.homeData.teamId}_light.svg',
+                      'https://assets.nhle.com/logos/nhl/svg/${game.awayData.teamId}_light.svg',
                       width: logoSize,
                       height: logoSize,
                       placeholderBuilder: (context) => const SizedBox(

@@ -40,8 +40,22 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() {
         _selectedDate = picked;
       });
-      context.read<GameProvider>().stopUpdates();
-      context.read<GameProvider>().getGamesOnDate(_selectedDate);
+      final provider = context.read<GameProvider>();
+      provider.stopUpdates();
+
+      // Check if selected date is today
+      final today = DateTime.now();
+      final isToday = picked.year == today.year &&
+          picked.month == today.month &&
+          picked.day == today.day;
+
+      if (isToday) {
+        // Resume automatic updates for today
+        provider.startHomeScreenUpdates();
+      } else {
+        // One-time fetch for historical date
+        provider.getGamesOnDate(_selectedDate);
+      }
     }
   }
 
@@ -72,27 +86,26 @@ class _HomeScreenState extends State<HomeScreen> {
                   topRight: Radius.circular(20),
                 ),
               ),
-              child: SingleChildScrollView(
-                controller: scrollController,
-                child: Column(
-                  children: [
-                    // Drag handle
-                    Container(
-                      margin: const EdgeInsets.symmetric(vertical: 8),
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[300],
-                        borderRadius: BorderRadius.circular(2),
-                      ),
+              child: Column(
+                children: [
+                  // Drag handle
+                  Container(
+                    margin: const EdgeInsets.symmetric(vertical: 8),
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[300],
+                      borderRadius: BorderRadius.circular(2),
                     ),
-                    // Game details content
-                    SizedBox(
-                      height: MediaQuery.of(context).size.height * 0.85,
+                  ),
+                  // Game details content
+                  Expanded(
+                    child: SingleChildScrollView(
+                      controller: scrollController,
                       child: GameScreen(gameId: gameId, showScaffold: false),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),

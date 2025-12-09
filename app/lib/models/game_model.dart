@@ -25,6 +25,7 @@ class Goal {
   final String? secondaryAssist;
   final int period;
   final String timeInPeriod;
+  final String? totalTime;
   final bool? isHome;
 
   Goal({
@@ -34,6 +35,7 @@ class Goal {
     this.secondaryAssist,
     required this.period,
     required this.timeInPeriod,
+    this.totalTime,
     this.isHome,
   });
 
@@ -45,6 +47,7 @@ class Goal {
       secondaryAssist: data['secondaryAssist'],
       period: data['period'] ?? 1,
       timeInPeriod: data['timeInPeriod'] ?? '00:00',
+      totalTime: data['totalTime'],
       isHome: data['isHome'],
     );
   }

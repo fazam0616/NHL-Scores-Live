@@ -56,82 +56,41 @@ class _GameScreenState extends State<GameScreen> {
               InkWell(
                 borderRadius: BorderRadius.circular(8),
                 child: Padding(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.only(left: 12, right: 12, top: 12),
                   child: Column(
                     crossAxisAlignment: isHomeGoal
                         ? CrossAxisAlignment.start
                         : CrossAxisAlignment.end,
                     children: [
                       // First line: Scorer and Time
-                      Stack(
-                        children: [
-                          Align(
-                            alignment: scorerAlign,
-                            child: Text(
-                              goal.scorer,
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                          Align(
-                            alignment: Alignment.center,
-                            child: Text(
-                              timeKey,
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      // Second line: Primary Assist and Goalie (if available)
-                      if (!isExpanded &&
-                          (goal.primaryAssist != null ||
-                              goal.goalie != null)) ...[
-                        const SizedBox(height: 4),
-                        Stack(
+                      SizedBox(
+                        height:
+                            24, // Fixed height to ensure consistent vertical centering
+                        child: Stack(
                           children: [
-                            if (goal.primaryAssist != null)
-                              Align(
-                                alignment: scorerAlign,
-                                child: Text(
-                                  'Assists: ${goal.primaryAssist}',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.grey.shade700,
-                                  ),
+                            Align(
+                              alignment: scorerAlign,
+                              child: Text(
+                                goal.scorer,
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
                                 ),
                               ),
-                            if (goal.goalie != null)
-                              Align(
-                                alignment: defenderAlign,
-                                child: Text(
-                                  'Goalie: ${goal.goalie}',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.grey.shade700,
-                                  ),
+                            ),
+                            Align(
+                              alignment: Alignment.center,
+                              child: Text(
+                                goal.totalTime ?? timeKey,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
                                 ),
                               ),
+                            ),
                           ],
                         ),
-                      ],
-                      // Third line: Secondary Assist (if available)
-                      if (!isExpanded && goal.secondaryAssist != null) ...[
-                        const SizedBox(height: 4),
-                        Text(
-                          goal.secondaryAssist!,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey.shade700,
-                          ),
-                          textAlign:
-                              isHomeGoal ? TextAlign.left : TextAlign.right,
-                        ),
-                      ],
+                      ),
                     ],
                   ),
                 ),
@@ -141,45 +100,47 @@ class _GameScreenState extends State<GameScreen> {
                 Container(
                   padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
                   child: Column(
-                    crossAxisAlignment: isHomeGoal
-                        ? CrossAxisAlignment.start
-                        : CrossAxisAlignment.end,
                     children: [
                       const Divider(height: 1),
                       const SizedBox(height: 8),
+                      // Assists aligned with scorer
                       if (goal.primaryAssist != null) ...[
-                        Text(
-                          'Primary Assist: ${goal.primaryAssist}',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: Colors.grey.shade800,
+                        Align(
+                          alignment: scorerAlign,
+                          child: Text(
+                            'Primary Assist: ${goal.primaryAssist}',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey.shade800,
+                            ),
                           ),
-                          textAlign:
-                              isHomeGoal ? TextAlign.left : TextAlign.right,
                         ),
                         const SizedBox(height: 4),
                       ],
                       if (goal.secondaryAssist != null) ...[
-                        Text(
-                          'Secondary Assist: ${goal.secondaryAssist}',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: Colors.grey.shade800,
+                        Align(
+                          alignment: scorerAlign,
+                          child: Text(
+                            'Secondary Assist: ${goal.secondaryAssist}',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey.shade800,
+                            ),
                           ),
-                          textAlign:
-                              isHomeGoal ? TextAlign.left : TextAlign.right,
                         ),
                         const SizedBox(height: 4),
                       ],
+                      // Goalie aligned opposite to scorer
                       if (goal.goalie != null) ...[
-                        Text(
-                          'Goalie: ${goal.goalie}',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: Colors.grey.shade800,
+                        Align(
+                          alignment: defenderAlign,
+                          child: Text(
+                            'Goalie: ${goal.goalie}',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey.shade800,
+                            ),
                           ),
-                          textAlign:
-                              isHomeGoal ? TextAlign.left : TextAlign.right,
                         ),
                       ],
                     ],
@@ -269,39 +230,54 @@ class _GameScreenState extends State<GameScreen> {
         }
 
         return Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: SingleChildScrollView(
-              physics: const ClampingScrollPhysics(),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Game status
-                  Container(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: game.isLive
-                          ? Colors.red.shade100
-                          : Colors.grey.shade100,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      game.status,
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: game.isLive ? Colors.red : Colors.black87,
-                      ),
-                    ),
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Game status
+              Container(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color:
+                      game.isLive ? Colors.red.shade100 : Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  game.status,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: game.isLive ? Colors.red : Colors.black87,
                   ),
-                  const SizedBox(height: 24),
-                  // Two column layout: Home (left) vs Away (right)
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Home team column (left)
-                      Expanded(
+                ),
+              ),
+              const SizedBox(height: 24),
+              // Two column layout: Home (left) vs Away (right)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Home team column (left)
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () {
+                        context.push(
+                            '/game/${widget.gameId}/team/${game.homeData.teamId}');
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.grey.shade300,
+                              blurRadius: 4,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
                         child: Column(
                           children: [
                             // Team full name
@@ -340,14 +316,29 @@ class _GameScreenState extends State<GameScreen> {
                           ],
                         ),
                       ),
-                      // Divider
-                      Container(
-                        width: 2,
-                        height: 180,
-                        color: Colors.grey.shade300,
-                      ),
-                      // Away team column (right)
-                      Expanded(
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  // Away team column (right)
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () {
+                        context.push(
+                            '/game/${widget.gameId}/team/${game.awayData.teamId}');
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.grey.shade300,
+                              blurRadius: 4,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
                         child: Column(
                           children: [
                             // Team full name
@@ -386,84 +377,67 @@ class _GameScreenState extends State<GameScreen> {
                           ],
                         ),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 32),
-                  // Goals section
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
-                      borderRadius: BorderRadius.circular(8),
                     ),
-                    child: game.goals == null || game.goals!.isEmpty
-                        ? const Text(
-                            'No goals yet',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey,
-                            ),
-                          )
-                        : Column(
-                            children: [
-                              for (var i = 0; i < game.goals!.length; i++)
-                                () {
-                                  final entry =
-                                      game.goals!.entries.elementAt(i);
-                                  final timeKey = entry.key;
-                                  final goal = entry.value;
-
-                                  // Use isHome boolean from goal data
-                                  final isHomeGoal = goal.isHome ?? false;
-
-                                  return _buildGoalWidget(
-                                    timeKey: timeKey,
-                                    goal: goal,
-                                    isHomeGoal: isHomeGoal,
-                                    homeTeamId: game.homeData.teamId,
-                                    awayTeamId: game.awayData.teamId,
-                                  );
-                                }(),
-                            ],
-                          ),
-                  ),
-                  const SizedBox(height: 16),
-                  // Team view buttons
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: () {
-                            // Close bottom sheet if present
-                            if (Navigator.canPop(context)) {
-                              Navigator.pop(context);
-                            }
-                            context.go(
-                                '/game/${widget.gameId}/team/${game.homeData.teamId}');
-                          },
-                          child: Text('View ${game.homeData.teamId}'),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: () {
-                            // Close bottom sheet if present
-                            if (Navigator.canPop(context)) {
-                              Navigator.pop(context);
-                            }
-                            context.go(
-                                '/game/${widget.gameId}/team/${game.awayData.teamId}');
-                          },
-                          child: Text('View ${game.awayData.teamId}'),
-                        ),
-                      ),
-                    ],
                   ),
                 ],
               ),
-            ));
+              const SizedBox(height: 32),
+              // Goals section
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: game.goals == null || game.goals!.isEmpty
+                    ? const Text(
+                        'No goals yet',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey,
+                        ),
+                      )
+                    : Column(
+                        children: [
+                          for (var entry in game.goals!.entries.toList()
+                            ..sort((a, b) {
+                              // Sort by totalTime (MM:SS format)
+                              final timeA = a.value.totalTime ?? '00:00';
+                              final timeB = b.value.totalTime ?? '00:00';
+
+                              // Convert MM:SS to total seconds for comparison
+                              final partsA = timeA.split(':');
+                              final partsB = timeB.split(':');
+                              final totalSecsA = int.parse(partsA[0]) * 60 +
+                                  int.parse(partsA[1]);
+                              final totalSecsB = int.parse(partsB[0]) * 60 +
+                                  int.parse(partsB[1]);
+
+                              return totalSecsA.compareTo(totalSecsB);
+                            }))
+                            () {
+                              final timeKey = entry.key;
+                              final goal = entry.value;
+
+                              // Use isHome boolean from goal data
+                              final isHomeGoal = goal.isHome ?? false;
+
+                              return _buildGoalWidget(
+                                timeKey: timeKey,
+                                goal: goal,
+                                isHomeGoal: isHomeGoal,
+                                homeTeamId: game.homeData.teamId,
+                                awayTeamId: game.awayData.teamId,
+                              );
+                            }(),
+                        ],
+                      ),
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        );
       },
     );
 

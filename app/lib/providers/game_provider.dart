@@ -42,27 +42,61 @@ class GameProvider extends ChangeNotifier {
       final startOfDayUTC = startOfDayEST.add(const Duration(hours: 5));
       final endOfDayUTC = endOfDayEST.add(const Duration(hours: 5));
 
-      final snapshot =
-          await _firestore
-              .collection('games')
-              .where(
-                'start_time',
-                isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDayUTC),
-              )
-              .where('start_time', isLessThan: Timestamp.fromDate(endOfDayUTC))
-              .orderBy('start_time', descending: false)
-              .get();
+      final snapshot = await _firestore
+          .collection('games')
+          .where(
+            'start_time',
+            isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDayUTC),
+          )
+          .where('start_time', isLessThan: Timestamp.fromDate(endOfDayUTC))
+          .orderBy('start_time', descending: false)
+          .get();
 
-      _games =
-          snapshot.docs
-              .map((doc) => Game.fromFirestore(doc.data(), doc.id))
-              .toList();
+      _games = snapshot.docs
+          .map((doc) => Game.fromFirestore(doc.data(), doc.id))
+          .toList();
+
+      // If no games found and querying today, trigger ingestion
+      if (_games.isEmpty && _isToday(date)) {
+        debugPrint('No games found for today, triggering ingestion...');
+        await _callIngestTodaysGames();
+
+        // Retry query after ingestion
+        final retrySnapshot = await _firestore
+            .collection('games')
+            .where(
+              'start_time',
+              isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDayUTC),
+            )
+            .where('start_time', isLessThan: Timestamp.fromDate(endOfDayUTC))
+            .orderBy('start_time', descending: false)
+            .get();
+
+        _games = retrySnapshot.docs
+            .map((doc) => Game.fromFirestore(doc.data(), doc.id))
+            .toList();
+      }
+
+      // Trigger updates for non-final games (don't await)
+      for (final game in _games) {
+        if (game.status != 'FINAL') {
+          _callUpdateGameFunction(game.id);
+        }
+      }
 
       notifyListeners();
     } catch (e) {
       _error = e.toString();
       notifyListeners();
     }
+  }
+
+  /// Check if date is today
+  bool _isToday(DateTime date) {
+    final now = DateTime.now();
+    return date.year == now.year &&
+        date.month == now.month &&
+        date.day == now.day;
   }
 
   /// Fetch today's games from Firestore (for home screen)
@@ -74,7 +108,7 @@ class GameProvider extends ChangeNotifier {
   void startHomeScreenUpdates() {
     stopUpdates(); // Clear any existing timer
     fetchTodaysGames(); // Initial fetch
-    _updateTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+    _updateTimer = Timer.periodic(const Duration(seconds: 10), (_) {
       fetchTodaysGames();
     });
   }
@@ -84,29 +118,26 @@ class GameProvider extends ChangeNotifier {
     stopUpdates(); // Clear existing timers/subscriptions
 
     // Listen to Firestore for real-time updates
-    _gameStreamSubscription = _firestore
-        .collection('games')
-        .doc(gameId)
-        .snapshots()
-        .listen(
-          (snapshot) {
-            if (snapshot.exists) {
-              _selectedGame = Game.fromFirestore(snapshot.data()!, snapshot.id);
-              _error = null;
-            } else {
-              _error = 'Game not found';
-              _selectedGame = null;
-            }
-            notifyListeners();
-          },
-          onError: (error) {
-            _error = error.toString();
-            notifyListeners();
-          },
-        );
+    _gameStreamSubscription =
+        _firestore.collection('games').doc(gameId).snapshots().listen(
+      (snapshot) {
+        if (snapshot.exists) {
+          _selectedGame = Game.fromFirestore(snapshot.data()!, snapshot.id);
+          _error = null;
+        } else {
+          _error = 'Game not found';
+          _selectedGame = null;
+        }
+        notifyListeners();
+      },
+      onError: (error) {
+        _error = error.toString();
+        notifyListeners();
+      },
+    );
 
     // Call updateGame function every 1 second if game is live
-    _updateTimer = Timer.periodic(const Duration(seconds: 1), (_) async {
+    _updateTimer = Timer.periodic(const Duration(seconds: 2), (_) async {
       if (_selectedGame?.isLive == true) {
         await _callUpdateGameFunction(gameId);
       }
@@ -121,6 +152,19 @@ class GameProvider extends ChangeNotifier {
     } catch (e) {
       // Silently fail - Firestore listener will handle updates
       debugPrint('Error calling updateGame function: $e');
+    }
+  }
+
+  /// Call Firebase Function to ingest today's games
+  Future<void> _callIngestTodaysGames() async {
+    try {
+      debugPrint('🔵 Calling ingestTodaysGames function...');
+      final callable = _functions.httpsCallable('ingestTodaysGames');
+      final result = await callable.call({});
+      debugPrint('✅ Ingestion complete: ${result.data}');
+    } catch (e) {
+      debugPrint('❌ Error calling ingestTodaysGames function: $e');
+      // Don't throw - allow app to continue even if ingestion fails
     }
   }
 
