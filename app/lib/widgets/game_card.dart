@@ -5,11 +5,13 @@ import '../models/game_model.dart';
 class GameCard extends StatelessWidget {
   final Game game;
   final VoidCallback? onTap;
+  final Color? backgroundColor;
 
   const GameCard({
     super.key,
     required this.game,
     this.onTap,
+    this.backgroundColor,
   });
 
   static const double logoSize = 50;
@@ -35,6 +37,7 @@ class GameCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      color: backgroundColor,
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,

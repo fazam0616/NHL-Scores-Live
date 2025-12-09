@@ -12,7 +12,8 @@ class GameProvider extends ChangeNotifier {
   Game? _selectedGame;
   bool _isLoading = false;
   String? _error;
-  Timer? _updateTimer;
+  Timer? _gameUpdateTimer;
+  Timer? _homeScreenTimer;
   StreamSubscription<DocumentSnapshot>? _gameStreamSubscription;
 
   List<Game> get games => _games;
@@ -104,18 +105,28 @@ class GameProvider extends ChangeNotifier {
     await getGamesOnDate(DateTime.now());
   }
 
-  /// Start periodic updates for home screen (every 4 seconds)
+  /// Start periodic updates for home screen (every 10 seconds)
   void startHomeScreenUpdates() {
-    stopUpdates(); // Clear any existing timer
+    stopHomeScreenUpdates(); // Clear any existing home screen timer
     fetchTodaysGames(); // Initial fetch
-    _updateTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+    _homeScreenTimer = Timer.periodic(const Duration(seconds: 10), (_) {
       fetchTodaysGames();
     });
   }
 
+  /// Stop home screen updates
+  void stopHomeScreenUpdates() {
+    _homeScreenTimer?.cancel();
+    _homeScreenTimer = null;
+  }
+
   /// Select a game and start live updates via Firebase Functions (every 1 second)
   void selectGameAndStartLiveUpdates(String gameId) {
-    stopUpdates(); // Clear existing timers/subscriptions
+    // Clear existing game-specific timers/subscriptions only
+    _gameUpdateTimer?.cancel();
+    _gameUpdateTimer = null;
+    _gameStreamSubscription?.cancel();
+    _gameStreamSubscription = null;
 
     // Listen to Firestore for real-time updates
     _gameStreamSubscription =
@@ -137,7 +148,7 @@ class GameProvider extends ChangeNotifier {
     );
 
     // Call updateGame function every 1 second if game is live
-    _updateTimer = Timer.periodic(const Duration(seconds: 2), (_) async {
+    _gameUpdateTimer = Timer.periodic(const Duration(seconds: 2), (_) async {
       if (_selectedGame?.isLive == true) {
         await _callUpdateGameFunction(gameId);
       }
@@ -150,8 +161,14 @@ class GameProvider extends ChangeNotifier {
       final callable = _functions.httpsCallable('updateGame');
       await callable.call({'gameId': gameId});
     } catch (e) {
-      // Silently fail - Firestore listener will handle updates
-      debugPrint('Error calling updateGame function: $e');
+      // Silently handle rate limiting errors (update too frequent)
+      final errorMessage = e.toString().toLowerCase();
+      if (!errorMessage.contains('too frequent') &&
+          !errorMessage.contains('minimum 2 seconds')) {
+        // Only print non-rate-limit errors
+        debugPrint('Error calling updateGame function: $e');
+      }
+      // Firestore listener will handle updates regardless
     }
   }
 
@@ -192,15 +209,20 @@ class GameProvider extends ChangeNotifier {
 
   /// Stop all timers and subscriptions
   void stopUpdates() {
-    _updateTimer?.cancel();
-    _updateTimer = null;
+    _gameUpdateTimer?.cancel();
+    _gameUpdateTimer = null;
+    _homeScreenTimer?.cancel();
+    _homeScreenTimer = null;
     _gameStreamSubscription?.cancel();
     _gameStreamSubscription = null;
   }
 
   /// Clear selected game
   void clearSelectedGame() {
-    stopUpdates();
+    _gameUpdateTimer?.cancel();
+    _gameUpdateTimer = null;
+    _gameStreamSubscription?.cancel();
+    _gameStreamSubscription = null;
     _selectedGame = null;
     notifyListeners();
   }

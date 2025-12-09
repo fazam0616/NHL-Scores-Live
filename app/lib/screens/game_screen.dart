@@ -18,6 +18,39 @@ class _GameScreenState extends State<GameScreen> {
   GameProvider? _provider;
   final Set<String> _expandedGoals = {};
 
+  String _formatTeamName(String teamName) {
+    final spaces = ' '.allMatches(teamName).length;
+
+    if (spaces == 0) {
+      // No spaces, return as is
+      return teamName;
+    } else if (spaces == 1) {
+      // One space, split on that space
+      return teamName.replaceFirst(' ', '\n');
+    } else {
+      // Two or more spaces, split to balance line lengths
+      final words = teamName.split(' ');
+      int bestSplit = 1;
+      int minDiff = teamName.length;
+
+      // Try each possible split point
+      for (int i = 1; i < words.length; i++) {
+        final line1 = words.sublist(0, i).join(' ');
+        final line2 = words.sublist(i).join(' ');
+        final diff = (line1.length - line2.length).abs();
+
+        if (diff < minDiff) {
+          minDiff = diff;
+          bestSplit = i;
+        }
+      }
+
+      final line1 = words.sublist(0, bestSplit).join(' ');
+      final line2 = words.sublist(bestSplit).join(' ');
+      return '$line1\n$line2';
+    }
+  }
+
   Widget _buildGoalWidget({
     required String timeKey,
     required dynamic goal,
@@ -282,7 +315,7 @@ class _GameScreenState extends State<GameScreen> {
                           children: [
                             // Team full name
                             Text(
-                              game.homeData.teamName,
+                              _formatTeamName(game.homeData.teamName),
                               style: const TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
@@ -343,7 +376,7 @@ class _GameScreenState extends State<GameScreen> {
                           children: [
                             // Team full name
                             Text(
-                              game.awayData.teamName,
+                              _formatTeamName(game.awayData.teamName),
                               style: const TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,

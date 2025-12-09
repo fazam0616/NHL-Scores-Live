@@ -78,7 +78,7 @@ async function updateTeams() {
  * Returns team stats including recent games, wins, losses, and total goals
  * @param {string} teamId - Team abbreviation (e.g., 'TOR', 'MTL')
  */
-async function fetchTeamData(teamId) {
+async function getTeamData(teamId) {
   try {
     // Find team document by abbreviation
     const teamQuery = await db.collection("teams")
@@ -98,9 +98,24 @@ async function fetchTeamData(teamId) {
       throw new Error(`Team ${teamId} has no valid franchise ID`);
     }
     
+    // Determine current season (e.g., "20242025" for 2024-2025 season)
+    const now = new Date();
+    const currentMonth = now.getMonth(); // 0-11
+    const currentYear = now.getFullYear();
+    
+    // NHL season runs from October (month 9) to June (month 5)
+    // If we're in Oct-Dec, season is currentYear to currentYear+1
+    // If we're in Jan-Sep, season is currentYear-1 to currentYear
+    const seasonStartYear = currentMonth >= 9 ? currentYear : currentYear - 1;
+    const currentSeason = `${seasonStartYear}${seasonStartYear + 1}`;
+    
+    // Check if cached season matches current season
+    const cachedSeason = teamData.season || null;
+    const seasonChanged = cachedSeason !== currentSeason;
+    
     // Check if we need to update cached data
     let needsUpdate = true;
-    if (teamData.last_updated) {
+    if (teamData.last_updated && !seasonChanged) {
       const lastUpdated = teamData.last_updated.toDate();
       
       // Check if there are any FINAL games since last update
@@ -113,26 +128,35 @@ async function fetchTeamData(teamId) {
       needsUpdate = !recentGamesQuery.empty;
     }
     
-    if (!needsUpdate && teamData.recent_games) {
+    if (!needsUpdate && teamData.season_recent_games) {
       // Return cached data
       return {
         success: true,
         teamId,
         franchiseId,
         teamName: teamData.team_name,
-        recentGames: teamData.recent_games || [],
-        gamesPlayed: teamData.games_played || 0,
-        wins: teamData.wins || 0,
-        losses: teamData.losses || 0,
-        totalGoals: teamData.total_goals || 0,
+        season: currentSeason,
+        recentGames: teamData.season_recent_games || [],
+        gamesPlayed: teamData.season_games_played || 0,
+        wins: teamData.season_wins || 0,
+        losses: teamData.season_losses || 0,
+        totalGoals: teamData.season_total_goals || 0,
+        allTimeGamesPlayed: teamData.alltime_games_played || 0,
+        allTimeWins: teamData.alltime_wins || 0,
+        allTimeLosses: teamData.alltime_losses || 0,
+        allTimeTotalGoals: teamData.alltime_total_goals || 0,
         source: "cache",
       };
     }
     
-    // Fetch recent games (2 queries: home and away)
+    // Fetch recent games (2 queries: home and away) for current season only
+    const seasonStartDate = new Date(seasonStartYear, 9, 1); // October 1st of season start year
+    const seasonStartTimestamp = Timestamp.fromDate(seasonStartDate);
+    
     const homeGamesQuery = await db.collection("games")
       .where("home_data.franchise_id", "==", franchiseId)
       .where("status", "==", "FINAL")
+      .where("start_time", ">=", seasonStartTimestamp)
       .orderBy("start_time", "desc")
       .limit(5)
       .get();
@@ -140,6 +164,7 @@ async function fetchTeamData(teamId) {
     const awayGamesQuery = await db.collection("games")
       .where("away_data.franchise_id", "==", franchiseId)
       .where("status", "==", "FINAL")
+      .where("start_time", ">=", seasonStartTimestamp)
       .orderBy("start_time", "desc")
       .limit(5)
       .get();
@@ -157,15 +182,17 @@ async function fetchTeamData(teamId) {
     allGames.sort((a, b) => b.start_time.toDate() - a.start_time.toDate());
     const recentGames = allGames.slice(0, 5);
     
-    // Calculate stats from ALL final games (not just recent 5)
+    // Calculate stats from ALL final games in current season (not just recent 5)
     const allHomeGamesQuery = await db.collection("games")
       .where("home_data.franchise_id", "==", franchiseId)
       .where("status", "==", "FINAL")
+      .where("start_time", ">=", seasonStartTimestamp)
       .get();
     
     const allAwayGamesQuery = await db.collection("games")
       .where("away_data.franchise_id", "==", franchiseId)
       .where("status", "==", "FINAL")
+      .where("start_time", ">=", seasonStartTimestamp)
       .get();
     
     let gamesPlayed = 0;
@@ -203,27 +230,99 @@ async function fetchTeamData(teamId) {
       }
     });
     
-    // Update team document with cached data
-    const recentGameIds = recentGames.map(g => g.id);
-    await teamDoc.ref.update({
-      recent_games: recentGameIds,
-      games_played: gamesPlayed,
-      wins,
-      losses,
-      total_goals: totalGoals,
-      last_updated: FieldValue.serverTimestamp(),
+    // Calculate all-time stats (across all seasons)
+    const allTimeHomeGamesQuery = await db.collection("games")
+      .where("home_data.franchise_id", "==", franchiseId)
+      .where("status", "==", "FINAL")
+      .get();
+    
+    const allTimeAwayGamesQuery = await db.collection("games")
+      .where("away_data.franchise_id", "==", franchiseId)
+      .where("status", "==", "FINAL")
+      .get();
+    
+    let allTimeGamesPlayed = 0;
+    let allTimeWins = 0;
+    let allTimeLosses = 0;
+    let allTimeTotalGoals = 0;
+    
+    // Process all-time home games
+    allTimeHomeGamesQuery.forEach((doc) => {
+      const game = doc.data();
+      allTimeGamesPlayed++;
+      const homeScore = game.home_data.team_score || 0;
+      const awayScore = game.away_data.team_score || 0;
+      allTimeTotalGoals += homeScore;
+      
+      if (homeScore > awayScore) {
+        allTimeWins++;
+      } else {
+        allTimeLosses++;
+      }
     });
+    
+    // Process all-time away games
+    allTimeAwayGamesQuery.forEach((doc) => {
+      const game = doc.data();
+      allTimeGamesPlayed++;
+      const homeScore = game.home_data.team_score || 0;
+      const awayScore = game.away_data.team_score || 0;
+      allTimeTotalGoals += awayScore;
+      
+      if (awayScore > homeScore) {
+        allTimeWins++;
+      } else {
+        allTimeLosses++;
+      }
+    });
+    
+    // Update team document with cached data only if there are actual changes
+    const recentGameIds = recentGames.map(g => g.id);
+    
+    // Check if there are any changes to the data
+    const hasChanges = 
+      JSON.stringify(teamData.season_recent_games || []) !== JSON.stringify(recentGameIds) ||
+      (teamData.season_games_played || 0) !== gamesPlayed ||
+      (teamData.season_wins || 0) !== wins ||
+      (teamData.season_losses || 0) !== losses ||
+      (teamData.season_total_goals || 0) !== totalGoals ||
+      (teamData.alltime_games_played || 0) !== allTimeGamesPlayed ||
+      (teamData.alltime_wins || 0) !== allTimeWins ||
+      (teamData.alltime_losses || 0) !== allTimeLosses ||
+      (teamData.alltime_total_goals || 0) !== allTimeTotalGoals ||
+      seasonChanged;
+    
+    if (hasChanges) {
+      await teamDoc.ref.update({
+        season: currentSeason,
+        season_recent_games: recentGameIds,
+        season_games_played: gamesPlayed,
+        season_wins: wins,
+        season_losses: losses,
+        season_total_goals: totalGoals,
+        alltime_games_played: allTimeGamesPlayed,
+        alltime_wins: allTimeWins,
+        alltime_losses: allTimeLosses,
+        alltime_total_goals: allTimeTotalGoals,
+        last_updated: FieldValue.serverTimestamp(),
+      });
+    }
     
     return {
       success: true,
       teamId,
       franchiseId,
       teamName: teamData.team_name,
+      season: currentSeason,
       recentGames: recentGameIds,
       gamesPlayed,
       wins,
       losses,
       totalGoals,
+      allTimeGamesPlayed,
+      allTimeWins,
+      allTimeLosses,
+      allTimeTotalGoals,
       source: "api",
     };
   } catch (error) {
@@ -908,7 +1007,7 @@ exports.fetchTeamData = onCall(async (request) => {
   
   console.log('Fetching team data for:', teamId);
   
-  const result = await fetchTeamData(teamId);
+  const result = await getTeamData(teamId);
   
   return result;
 });
@@ -950,7 +1049,7 @@ exports.fetchTeamData = onCall(async (request) => {
 // Note: Cloud Functions are exported via exports.functionName above
 module.exports.db = db;
 module.exports.updateTeams = updateTeams;
-module.exports.fetchTeamData = fetchTeamData;
+module.exports.getTeamData = getTeamData;
 module.exports.createGame = createGame;
 module.exports.fetchGame = fetchGame;
 module.exports.fetchGameGoals = fetchGameGoals;

@@ -3,8 +3,11 @@ import 'package:go_router/go_router.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:provider/provider.dart';
 import '../models/game_model.dart';
+import '../providers/game_provider.dart';
 import '../widgets/game_card.dart';
+import 'game_screen.dart';
 
 class TeamScreen extends StatefulWidget {
   final String gameId;
@@ -45,13 +48,13 @@ class _TeamScreenState extends State<TeamScreen> {
       // Call fetchTeamData function
       final callable = _functions.httpsCallable('fetchTeamData');
       final result = await callable.call({'teamId': widget.teamId});
-      
+
       _teamData = result.data as Map<String, dynamic>;
 
       // Fetch the recent games
       final recentGameIds = List<String>.from(_teamData!['recentGames'] ?? []);
       final games = <Game>[];
-      
+
       for (final gameId in recentGameIds) {
         final doc = await _firestore.collection('games').doc(gameId).get();
         if (doc.exists) {
@@ -74,7 +77,11 @@ class _TeamScreenState extends State<TeamScreen> {
   @override
   Widget build(BuildContext context) {
     final teamName = _teamData?['teamName'] ?? widget.teamId;
-    
+    final season = _teamData?['season'] ?? '';
+    final seasonDisplay = season.isNotEmpty
+        ? '${season.substring(0, 4)}-${season.substring(4)}'
+        : '';
+
     return Scaffold(
       appBar: AppBar(
         title: Text(teamName),
@@ -99,7 +106,7 @@ class _TeamScreenState extends State<TeamScreen> {
               : RefreshIndicator(
                   onRefresh: _loadTeamData,
                   child: ListView(
-                    padding: const EdgeInsets.all(16.0),
+                    padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 32.0),
                     children: [
                       // Team logo and name
                       Center(
@@ -125,6 +132,15 @@ class _TeamScreenState extends State<TeamScreen> {
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
+                            if (seasonDisplay.isNotEmpty)
+                              Text(
+                                seasonDisplay,
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  color: Colors.grey,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
                             if (_teamData?['source'] == 'cache')
                               const Text(
                                 '(Cached)',
@@ -145,12 +161,26 @@ class _TeamScreenState extends State<TeamScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text(
-                                'Season Stats',
-                                style: TextStyle(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
-                                ),
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text(
+                                    'Season Stats',
+                                    style: TextStyle(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  if (seasonDisplay.isNotEmpty)
+                                    Text(
+                                      seasonDisplay,
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        color: Colors.grey,
+                                      ),
+                                    ),
+                                ],
                               ),
                               const SizedBox(height: 16),
                               _buildStatRow(
@@ -172,6 +202,47 @@ class _TeamScreenState extends State<TeamScreen> {
                               _buildStatRow(
                                 'Win Rate',
                                 _calculateWinRate(),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // All-time stats
+                      Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'All Time Stats',
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              _buildStatRow(
+                                'Games Played',
+                                '${_teamData?['allTimeGamesPlayed'] ?? 0}',
+                              ),
+                              _buildStatRow(
+                                'Wins',
+                                '${_teamData?['allTimeWins'] ?? 0}',
+                              ),
+                              _buildStatRow(
+                                'Losses',
+                                '${_teamData?['allTimeLosses'] ?? 0}',
+                              ),
+                              _buildStatRow(
+                                'Total Goals',
+                                '${_teamData?['allTimeTotalGoals'] ?? 0}',
+                              ),
+                              _buildStatRow(
+                                'Win Rate',
+                                _calculateAllTimeWinRate(),
                               ),
                             ],
                           ),
@@ -199,15 +270,98 @@ class _TeamScreenState extends State<TeamScreen> {
                         ..._recentGames.map(
                           (game) => GameCard(
                             game: game,
-                            onTap: () {
-                              context.push('/game/${game.id}');
-                            },
+                            backgroundColor: _getGameColor(game),
+                            onTap: () => _showGameDetails(context, game.id),
                           ),
                         ),
                     ],
                   ),
                 ),
     );
+  }
+
+  void _showGameDetails(BuildContext context, String gameId) {
+    // Start live updates for selected game
+    context.read<GameProvider>().selectGameAndStartLiveUpdates(gameId);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      enableDrag: true,
+      isDismissible: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => GestureDetector(
+        onTap: () => Navigator.pop(context),
+        behavior: HitTestBehavior.opaque,
+        child: GestureDetector(
+          onTap: () {},
+          child: DraggableScrollableSheet(
+            initialChildSize: 0.6,
+            minChildSize: 0.3,
+            maxChildSize: 0.9,
+            builder: (context, scrollController) => Container(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(20),
+                  topRight: Radius.circular(20),
+                ),
+              ),
+              child: Column(
+                children: [
+                  // Drag handle
+                  Container(
+                    margin: const EdgeInsets.symmetric(vertical: 8),
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[300],
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  // Game details content
+                  Expanded(
+                    child: SingleChildScrollView(
+                      controller: scrollController,
+                      child: GameScreen(gameId: gameId, showScaffold: false),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    ).whenComplete(() {
+      // Clear selected game when bottom sheet closes
+      context.read<GameProvider>().clearSelectedGame();
+    });
+  }
+
+  Color? _getGameColor(Game game) {
+    // Only color final games
+    if (!game.isFinal) return null;
+
+    final franchiseId = _teamData?['franchiseId'];
+    if (franchiseId == null) return null;
+
+    // Determine if this team is home or away
+    final isHome = game.homeData.teamId == widget.teamId;
+    final teamScore =
+        isHome ? game.homeData.teamScore : game.awayData.teamScore;
+    final opponentScore =
+        isHome ? game.awayData.teamScore : game.homeData.teamScore;
+
+    if (teamScore > opponentScore) {
+      // Win - pale green
+      return Colors.green.shade50;
+    } else if (teamScore < opponentScore) {
+      // Loss - pale red
+      return Colors.red.shade50;
+    } else {
+      // Draw - pale yellow
+      return Colors.yellow.shade50;
+    }
   }
 
   Widget _buildStatRow(String label, String value) {
@@ -235,10 +389,20 @@ class _TeamScreenState extends State<TeamScreen> {
   String _calculateWinRate() {
     final gamesPlayed = _teamData?['gamesPlayed'] ?? 0;
     final wins = _teamData?['wins'] ?? 0;
-    
+
     if (gamesPlayed == 0) return '0.0%';
-    
+
     final winRate = (wins / gamesPlayed * 100).toStringAsFixed(1);
+    return '$winRate%';
+  }
+
+  String _calculateAllTimeWinRate() {
+    final allTimeGamesPlayed = _teamData?['allTimeGamesPlayed'] ?? 0;
+    final allTimeWins = _teamData?['allTimeWins'] ?? 0;
+
+    if (allTimeGamesPlayed == 0) return '0.0%';
+
+    final winRate = (allTimeWins / allTimeGamesPlayed * 100).toStringAsFixed(1);
     return '$winRate%';
   }
 }

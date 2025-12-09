@@ -25,7 +25,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
-    context.read<GameProvider>().stopUpdates();
+    context.read<GameProvider>().stopHomeScreenUpdates();
     super.dispose();
   }
 
@@ -41,7 +41,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _selectedDate = picked;
       });
       final provider = context.read<GameProvider>();
-      provider.stopUpdates();
+      provider.stopHomeScreenUpdates();
 
       // Check if selected date is today
       final today = DateTime.now();
@@ -112,10 +112,22 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
     ).whenComplete(() {
-      // Clear selected game and resume home screen updates when bottom sheet closes
+      // Clear selected game when bottom sheet closes
       context.read<GameProvider>().clearSelectedGame();
-      // Fetch games for the currently selected date, not today
-      context.read<GameProvider>().getGamesOnDate(_selectedDate);
+
+      // Check if we're viewing today - if so, restart home screen updates
+      final today = DateTime.now();
+      final isToday = _selectedDate.year == today.year &&
+          _selectedDate.month == today.month &&
+          _selectedDate.day == today.day;
+
+      if (isToday) {
+        // Home screen timer should still be running, but ensure it's active
+        // The timer wasn't stopped, so it should continue automatically
+      } else {
+        // For historical dates, just refresh the data once
+        context.read<GameProvider>().getGamesOnDate(_selectedDate);
+      }
     });
   }
 
