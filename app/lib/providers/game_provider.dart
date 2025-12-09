@@ -11,6 +11,7 @@ class GameProvider extends ChangeNotifier {
   List<Game> _games = [];
   Game? _selectedGame;
   bool _isLoading = false;
+  bool _isLoadingGoals = false;
   String? _error;
   Timer? _gameUpdateTimer;
   Timer? _homeScreenTimer;
@@ -19,13 +20,16 @@ class GameProvider extends ChangeNotifier {
   List<Game> get games => _games;
   Game? get selectedGame => _selectedGame;
   bool get isLoading => _isLoading;
+  bool get isLoadingGoals => _isLoadingGoals;
   String? get error => _error;
 
   /// Fetch games from Firestore for a specific date
   Future<void> getGamesOnDate(DateTime date) async {
-    try {
-      _error = null;
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
 
+    try {
       // Get start and end of the specified date in EST (UTC-5)
       // NHL games are scheduled in EST, so we need to query based on EST dates
       final dateUtc = date.toUtc();
@@ -85,9 +89,11 @@ class GameProvider extends ChangeNotifier {
         }
       }
 
+      _isLoading = false;
       notifyListeners();
     } catch (e) {
       _error = e.toString();
+      _isLoading = false;
       notifyListeners();
     }
   }
@@ -187,6 +193,9 @@ class GameProvider extends ChangeNotifier {
 
   /// Call Firebase Function to fetch goals for a game
   Future<void> fetchGoalsForGame(String gameId) async {
+    _isLoadingGoals = true;
+    notifyListeners();
+
     try {
       debugPrint('🔵 Attempting to call fetchGoals for game: $gameId');
       debugPrint('🔵 Functions instance: $_functions');
@@ -198,12 +207,16 @@ class GameProvider extends ChangeNotifier {
       debugPrint('✅ Successfully called fetchGoals: ${result.data}');
 
       // Goals will be updated via Firestore listener
+      _isLoadingGoals = false;
+      notifyListeners();
     } catch (e) {
       debugPrint('❌ Error fetching goals: $e');
       debugPrint('❌ Error type: ${e.runtimeType}');
       if (e is Exception) {
         debugPrint('❌ Exception details: $e');
       }
+      _isLoadingGoals = false;
+      notifyListeners();
     }
   }
 

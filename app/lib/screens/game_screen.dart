@@ -235,31 +235,80 @@ class _GameScreenState extends State<GameScreen> {
       builder: (context, gameProvider, child) {
         if (gameProvider.error != null) {
           return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.error, size: 64, color: Colors.red),
-                const SizedBox(height: 16),
-                Text('Error: ${gameProvider.error}'),
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  onPressed: () {
-                    if (Navigator.canPop(context)) {
-                      Navigator.pop(context);
-                    } else {
-                      context.go('/');
-                    }
-                  },
-                  child: const Text('Close'),
-                ),
-              ],
+            child: Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Problem Loading Game',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'There was a problem loading the game details. Please check your connection and try again.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey.shade700,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      ElevatedButton.icon(
+                        onPressed: () {
+                          gameProvider
+                              .selectGameAndStartLiveUpdates(widget.gameId);
+                          gameProvider.fetchGoalsForGame(widget.gameId);
+                        },
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Retry'),
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24,
+                            vertical: 12,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      OutlinedButton(
+                        onPressed: () {
+                          if (Navigator.canPop(context)) {
+                            Navigator.pop(context);
+                          } else {
+                            context.go('/');
+                          }
+                        },
+                        child: const Text('Close'),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24,
+                            vertical: 12,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           );
         }
 
         final game = gameProvider.selectedGame;
         if (game == null) {
-          return const Center(child: CircularProgressIndicator());
+          return const Center(
+            child: CircularProgressIndicator(
+              color: Colors.blue,
+            ),
+          );
         }
 
         return Padding(
@@ -332,8 +381,10 @@ class _GameScreenState extends State<GameScreen> {
                                 width: 80,
                                 height: 80,
                                 child: Center(
-                                  child:
-                                      CircularProgressIndicator(strokeWidth: 2),
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.blue,
+                                  ),
                                 ),
                               ),
                             ),
@@ -393,8 +444,10 @@ class _GameScreenState extends State<GameScreen> {
                                 width: 80,
                                 height: 80,
                                 child: Center(
-                                  child:
-                                      CircularProgressIndicator(strokeWidth: 2),
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.blue,
+                                  ),
                                 ),
                               ),
                             ),
@@ -415,6 +468,14 @@ class _GameScreenState extends State<GameScreen> {
                 ],
               ),
               const SizedBox(height: 32),
+              Text(
+                'Goals',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey.shade800,
+                ),
+              ),
               // Goals section
               Container(
                 padding: const EdgeInsets.all(16),
@@ -422,50 +483,59 @@ class _GameScreenState extends State<GameScreen> {
                   color: Colors.grey.shade100,
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: game.goals == null || game.goals!.isEmpty
-                    ? const Text(
-                        'No goals yet',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey,
+                child: gameProvider.isLoadingGoals
+                    ? const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(24.0),
+                          child: CircularProgressIndicator(
+                            color: Colors.blue,
+                          ),
                         ),
                       )
-                    : Column(
-                        children: [
-                          for (var entry in game.goals!.entries.toList()
-                            ..sort((a, b) {
-                              // Sort by totalTime (MM:SS format)
-                              final timeA = a.value.totalTime ?? '00:00';
-                              final timeB = b.value.totalTime ?? '00:00';
+                    : game.goals == null || game.goals!.isEmpty
+                        ? const Text(
+                            'No goals yet',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey,
+                            ),
+                          )
+                        : Column(
+                            children: [
+                              for (var entry in game.goals!.entries.toList()
+                                ..sort((a, b) {
+                                  // Sort by totalTime (MM:SS format)
+                                  final timeA = a.value.totalTime ?? '00:00';
+                                  final timeB = b.value.totalTime ?? '00:00';
 
-                              // Convert MM:SS to total seconds for comparison
-                              final partsA = timeA.split(':');
-                              final partsB = timeB.split(':');
-                              final totalSecsA = int.parse(partsA[0]) * 60 +
-                                  int.parse(partsA[1]);
-                              final totalSecsB = int.parse(partsB[0]) * 60 +
-                                  int.parse(partsB[1]);
+                                  // Convert MM:SS to total seconds for comparison
+                                  final partsA = timeA.split(':');
+                                  final partsB = timeB.split(':');
+                                  final totalSecsA = int.parse(partsA[0]) * 60 +
+                                      int.parse(partsA[1]);
+                                  final totalSecsB = int.parse(partsB[0]) * 60 +
+                                      int.parse(partsB[1]);
 
-                              return totalSecsA.compareTo(totalSecsB);
-                            }))
-                            () {
-                              final timeKey = entry.key;
-                              final goal = entry.value;
+                                  return totalSecsA.compareTo(totalSecsB);
+                                }))
+                                () {
+                                  final timeKey = entry.key;
+                                  final goal = entry.value;
 
-                              // Use isHome boolean from goal data
-                              final isHomeGoal = goal.isHome ?? false;
+                                  // Use isHome boolean from goal data
+                                  final isHomeGoal = goal.isHome ?? false;
 
-                              return _buildGoalWidget(
-                                timeKey: timeKey,
-                                goal: goal,
-                                isHomeGoal: isHomeGoal,
-                                homeTeamId: game.homeData.teamId,
-                                awayTeamId: game.awayData.teamId,
-                              );
-                            }(),
-                        ],
-                      ),
+                                  return _buildGoalWidget(
+                                    timeKey: timeKey,
+                                    goal: goal,
+                                    isHomeGoal: isHomeGoal,
+                                    homeTeamId: game.homeData.teamId,
+                                    awayTeamId: game.awayData.teamId,
+                                  );
+                                }(),
+                            ],
+                          ),
               ),
               const SizedBox(height: 16),
             ],
